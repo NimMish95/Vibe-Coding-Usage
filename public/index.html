@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vibe Coding Usage</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/css/index.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <header class="glass-panel">
+        <div class="logo">
+            <span class="logo-icon">📊</span>
+            <h1>Vibe Coding Usage</h1>
+        </div>
+        <div class="header-actions">
+            <span id="last-sync-time">Last synced: Never</span>
+            <button id="btn-sync" class="btn primary">↻ Sync Now</button>
+            <button id="btn-reset" class="btn" style="background: hsla(0, 100%, 60%, 0.2); border-color: hsla(0, 100%, 60%, 0.5); color: #ff8888;">⚠️ Reset DB</button>
+            <button id="btn-settings" class="btn icon">⚙️</button>
+        </div>
+    </header>
+
+    <main>
+
+        <section class="controls glass-panel" style="display: flex; flex-direction: column; gap: 1.5rem;">
+            <!-- Row 1 -->
+            <div style="display: flex; gap: 1.5rem; width: 100%;">
+                <div class="control-group">
+                    <div class="filter-header"><label>Platform / Profile</label><span class="clear-btn" data-target="filter-platform">×</span></div>
+                    <select id="filter-platform" multiple class="multi-select"></select>
+                </div>
+                <div class="control-group" style="flex: 1;">
+                    <div class="filter-header"><label>Project</label><span class="clear-btn" data-target="filter-project">×</span></div>
+                    <select id="filter-project" multiple class="multi-select"></select>
+                </div>
+            </div>
+
+            <!-- Row 2 -->
+            <div style="display: flex; gap: 1.5rem; width: 100%; align-items: flex-start; flex-wrap: wrap;">
+                <div class="control-group" style="min-width: 280px;">
+                    <label>Time Range</label>
+                    <select id="filter-time-range">
+                        <option value="today">Today</option>
+                        <option value="this-week">This Week</option>
+                        <option value="this-month">This Month</option>
+                        <option value="all-time" selected>All Time</option>
+                        <option value="custom">Custom...</option>
+                    </select>
+                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                        <input type="date" id="filter-date-from" style="display: none; width: 120px;">
+                        <span id="custom-date-separator" style="display: none; align-self: center;">to</span>
+                        <input type="date" id="filter-date-to" style="display: none; width: 120px;">
+                    </div>
+                </div>
+                <div class="control-group">
+                    <div class="filter-header"><label>Model</label><span class="clear-btn" data-target="filter-model">×</span></div>
+                    <select id="filter-model" multiple class="multi-select"></select>
+                </div>
+                <div class="control-group">
+                    <div class="filter-header"><label>Type</label><span class="clear-btn" data-target="filter-type">×</span></div>
+                    <select id="filter-type" multiple class="multi-select"></select>
+                </div>
+                <div class="filter-actions" style="margin-left: auto; align-self: flex-end;">
+                    <button id="btn-clear-filters" class="btn">Clear Filters</button>
+                    <button id="btn-apply-filters" class="btn primary">Apply Filters</button>
+                </div>
+            </div>
+        </section>
+
+        <section class="summary-cards" style="margin-top: 1.5rem;">
+            <div class="card glass-panel" id="card-tokens">
+                <h3>Total Tokens</h3>
+                <div class="value">0</div>
+                <div class="subtitle">Selected range</div>
+            </div>
+            <div class="card glass-panel" id="card-tokens-excl-cache">
+                <h3>Tokens (Excl. Cache)</h3>
+                <div class="value">0</div>
+                <div class="subtitle">Without cache reads</div>
+            </div>
+            <div class="card glass-panel" id="card-cost">
+                <h3>Total Cost</h3>
+                <div class="value">$0.00</div>
+                <div class="subtitle">Estimated</div>
+            </div>
+            <div class="card glass-panel" id="card-active">
+                <h3>Active Projects</h3>
+                <div class="value">0</div>
+                <div class="subtitle">Selected range</div>
+            </div>
+        </section>
+
+        <section class="dashboard-panel glass-panel" style="margin-top: 1.5rem;">
+            <div class="panel-header">
+                <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <h2 style="margin: 0;">Detailed Data Table</h2>
+                    <div class="toggle-switch">
+                        <input type="radio" id="table-unit-tokens" name="table-unit-type" value="tokens" checked>
+                        <label for="table-unit-tokens">Tokens</label>
+                        <input type="radio" id="table-unit-dollars" name="table-unit-type" value="dollars">
+                        <label for="table-unit-dollars">Dollars</label>
+                    </div>
+                    <div class="toggle-switch">
+                        <input type="radio" id="table-mode-value" name="table-unit-mode" value="value" checked>
+                        <label for="table-mode-value">Value</label>
+                        <input type="radio" id="table-mode-percent" name="table-unit-mode" value="percent">
+                        <label for="table-mode-percent">%</label>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 0.75rem; align-items: center; flex-wrap: wrap;">
+                    <button id="btn-toggle-path" class="btn" style="display: none;" title="Toggle Full Path">Expand Path</button>
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <label for="table-group-by" style="font-size: 0.75rem; color: var(--text-secondary);">Primary:</label>
+                        <select id="table-group-by">
+                            <option value="model" selected>By Model</option>
+                            <option value="project">By Project</option>
+                            <option value="session">By Session</option>
+                            <option value="platform">By Platform</option>
+                            <option value="profile">By Profile</option>
+                            <option value="date">By Date</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.4rem;">
+                        <label for="table-detail-by" style="font-size: 0.75rem; color: var(--text-secondary);">Detail:</label>
+                        <select id="table-detail-by">
+                            <option value="project" selected>By Project</option>
+                            <option value="model">By Model</option>
+                            <option value="session">By Session</option>
+                            <option value="platform">By Platform</option>
+                            <option value="profile">By Profile</option>
+                            <option value="date">By Date</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div class="panel-body">
+                <style>
+                    #data-table thead, #data-table tfoot {
+                        overflow-y: scroll;
+                        -ms-overflow-style: none;
+                        scrollbar-width: none;
+                    }
+                    #data-table thead::-webkit-scrollbar, #data-table tfoot::-webkit-scrollbar {
+                        display: none;
+                    }
+                    #data-table tr {
+                        display: flex;
+                        width: 100%;
+                    }
+                    .col-group { width: 20%; flex-shrink: 0; }
+                    .col-metric { width: 10%; flex-shrink: 0; text-align: right; }
+                </style>
+                <table id="data-table" style="width: 100%; border-collapse: collapse; text-align: left; min-width: 950px; display: flex; flex-direction: column;">
+                    <thead style="background: var(--bg-dark);">
+                        <tr style="border-bottom: 1px solid var(--border-color); cursor: pointer;">
+                            <th class="col-group" data-sort="group" style="padding: 0.75rem; user-select: none;">Group Name ↕</th>
+                            <th class="col-metric" data-sort="input" style="padding: 0.75rem; user-select: none;">Input ↕</th>
+                            <th class="col-metric" data-sort="output" style="padding: 0.75rem; user-select: none;">Output ↕</th>
+                            <th class="col-metric" data-sort="cache_w" style="padding: 0.75rem; user-select: none;">Cache W ↕</th>
+                            <th class="col-metric" data-sort="cache_r" style="padding: 0.75rem; user-select: none;">Cache R ↕</th>
+                            <th class="col-metric" data-sort="excl_cache" style="padding: 0.75rem; user-select: none;">Tokens Excl. Cache ↕</th>
+                            <th class="col-metric" data-sort="total" style="padding: 0.75rem; user-select: none;">Total Tokens ↕</th>
+                            <th class="col-metric" data-sort="hit_rate" style="padding: 0.75rem; user-select: none;">Cache Hit Rate ↕</th>
+                            <th class="col-metric" data-sort="cost" style="padding: 0.75rem; user-select: none;">Est. Cost ↕</th>
+                        </tr>
+                    </thead>
+                    <tbody id="data-table-body" style="max-height: 250px; overflow-y: scroll; display: block;">
+                        <!-- Populated by JS -->
+                    </tbody>
+                    <tfoot id="data-table-foot" style="background: var(--bg-dark); font-weight: bold; border-top: 2px solid var(--border-color); display: block;">
+                        <!-- Populated by JS -->
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+
+        <section class="charts-container">
+            <div class="dashboard-panel glass-panel">
+                <div class="panel-header">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <h2 style="margin: 0;">Usage Heatmap</h2>
+                        <div class="toggle-switch">
+                            <input type="radio" id="heatmap-unit-tokens" name="heatmap-unit" value="tokens" checked>
+                            <label for="heatmap-unit-tokens">Tokens</label>
+                            <input type="radio" id="heatmap-unit-dollars" name="heatmap-unit" value="dollars">
+                            <label for="heatmap-unit-dollars">Dollars</label>
+                        </div>
+                    </div>
+                    <select id="heatmap-scale">
+                        <option value="daily" selected>Daily</option>
+                        <option value="hourly">Hourly</option>
+                    </select>
+                </div>
+                <div class="panel-body">
+                    <div class="canvas-wrapper">
+                        <canvas id="heatmap-canvas" style="cursor: default;"></canvas>
+                    </div>
+                </div>
+                <div id="heatmap-tooltip" class="tooltip glass-panel" style="display: none;"></div>
+            </div>
+
+            <div class="dashboard-panel glass-panel">
+                <div class="panel-header">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <h2 style="margin: 0;">Usage Trends</h2>
+                        <div class="toggle-switch">
+                            <input type="radio" id="bar-unit-tokens" name="bar-unit" value="tokens" checked>
+                            <label for="bar-unit-tokens">Tokens</label>
+                            <input type="radio" id="bar-unit-dollars" name="bar-unit" value="dollars">
+                            <label for="bar-unit-dollars">Dollars</label>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.75rem; align-items: center;">
+                        <select id="bar-scale">
+                            <option value="daily" selected>Daily</option>
+                            <option value="hourly">Hourly</option>
+                        </select>
+                        <select id="bar-group-by">
+                            <option value="type" selected>By Type</option>
+                            <option value="model">By Model</option>
+                            <option value="platform">By Profile</option>
+                            <option value="project">By Project</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="panel-body">
+                    <div class="canvas-wrapper" style="height: 300px;">
+                        <canvas id="bar-chart-canvas"></canvas>
+                    </div>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <div id="toast-container"></div>
+
+    <!-- Visual Settings Modal -->
+    <div id="settings-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-content modal-large glass-panel">
+            <div class="modal-header">
+                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                    <span style="font-size: 1.25rem;">⚙️</span>
+                    <h2 style="margin: 0;">系統設定 (System Settings)</h2>
+                </div>
+                <button id="btn-close-settings" class="btn icon">✕</button>
+            </div>
+            
+            <div class="modal-body-layout">
+                <!-- Left Sidebar -->
+                <aside class="settings-sidebar">
+                    <div class="settings-search-wrapper">
+                        <input type="text" id="settings-search" placeholder="🔍 搜尋設定..." />
+                    </div>
+                    <div class="settings-categories-label">設定分類</div>
+                    <ul class="settings-nav">
+                        <li class="settings-nav-item active" data-category="sources">
+                            <span class="nav-icon">📁</span>
+                            <span class="nav-text">路徑與資料來源</span>
+                        </li>
+                    </ul>
+                </aside>
+
+                <!-- Right Main Area -->
+                <section class="settings-main">
+                    <div id="section-sources" class="settings-section" data-keywords="path backup database sources platform profile claude antigravity 路徑 備份 資料庫 來源">
+                        <div class="section-title-bar">
+                            <h3>路徑與資料來源 (Sources & Storage)</h3>
+                            <p class="section-desc">配置日誌讀取目錄、資料庫儲存以及自動備份位置。</p>
+                        </div>
+
+                        <!-- System General Paths -->
+                        <div class="settings-form-grid">
+                            <div class="form-field" data-keywords="backup path 備份路徑">
+                                <label for="setting-backup-path">
+                                    <span class="field-title">備份路徑 (Backup Path)</span>
+                                    <span class="field-desc">啟動時自動備份原始日誌檔的目標目錄</span>
+                                </label>
+                                <input type="text" id="setting-backup-path" placeholder="e.g. D:/Backups/vibe-coding-usage" />
+                            </div>
+                            <div class="form-field" data-keywords="database db sqlite 資料庫">
+                                <label for="setting-db-path">
+                                    <span class="field-title">資料庫檔案 (Database)</span>
+                                    <span class="field-desc">SQLite 資料庫檔案名稱或路徑</span>
+                                </label>
+                                <input type="text" id="setting-db-path" placeholder="usage.db" />
+                            </div>
+                        </div>
+
+                        <!-- Sources Interactive Table -->
+                        <div class="sources-panel" data-keywords="sources platform profile path 來源 平台 設定檔">
+                            <div class="sources-panel-header">
+                                <div>
+                                    <h4>資料來源清單 (Data Sources)</h4>
+                                    <span class="sub-label">設定各平台 (Claude Code / Antigravity) 的日誌目錄</span>
+                                </div>
+                                <button type="button" id="btn-add-source" class="btn primary small">+ 新增來源</button>
+                            </div>
+
+                            <div class="sources-table-wrapper">
+                                <table class="sources-table" id="settings-sources-table">
+                                    <thead>
+                                        <tr>
+                                            <th style="width: 25%;">平台 (Platform)</th>
+                                            <th style="width: 25%;">設定檔 (Profile)</th>
+                                            <th style="width: 42%;">資料夾路徑 (Folder Path)</th>
+                                            <th style="width: 8%; text-align: center;">操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="settings-sources-tbody">
+                                        <!-- Populated dynamically -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <div class="modal-footer">
+                <div id="first-run-alert" style="display: none; color: var(--claude-color); font-size: 0.85rem;">
+                    💡 首次啟動：系統已為您自動填入偵測到的候選路徑，請確認後按「儲存並初始化」。
+                </div>
+                <div style="margin-left: auto; display: flex; gap: 0.75rem;">
+                    <button id="btn-cancel-settings" class="btn">取消</button>
+                    <button id="btn-save-settings" class="btn primary">儲存並套用</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/dist/filters.js"></script>
+    <script src="/dist/heatmap.js"></script>
+    <script src="/dist/charts.js"></script>
+    <script src="/dist/table.js"></script>
+    <script src="/dist/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+package-lock.json
+
+# User Configuration & Private Paths
+config.json
+
+# Database & SQLite Storage (Contains private usage history, project names, and session IDs)
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+*.sqlite
+*.sqlite3
+usage.db
+data/
+
+# Build outputs
+dist/
+public/dist/
+
+# Backups and Logs
+backups/
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables & Secrets
+.env
+.env.local
+.env.*.local
+
+# Operating System & IDE Files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+.obsidian/
+

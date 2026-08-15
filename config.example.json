@@ -1,0 +1,26 @@
+{
+  "sources": [
+    {
+      "platform": "claude-code",
+      "profile": "default",
+      "path": "C:/Users/<Username>/.claude"
+    },
+    {
+      "platform": "claude-code",
+      "profile": "personal",
+      "path": "C:/Users/<Username>/.claude-personal"
+    },
+    {
+      "platform": "claude-code",
+      "profile": "work",
+      "path": "C:/Users/<Username>/.claude-work"
+    },
+    {
+      "platform": "antigravity",
+      "profile": "default",
+      "path": "C:/Users/<Username>/.gemini/antigravity"
+    }
+  ],
+  "backupPath": "D:/Backups/vibe-coding-usage",
+  "database": "usage.db"
+}
