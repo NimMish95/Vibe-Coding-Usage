@@ -1,6 +1,5 @@
 import fs from 'fs';
 import path from 'path';
-import * as cheerio from 'cheerio';
 import fetch from 'node-fetch';
 import { PricingConfig } from './types';
 

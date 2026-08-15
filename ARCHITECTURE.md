@@ -10,7 +10,7 @@
 graph TD
     A[Log 數據源] -->|Claude Code / Antigravity Log| B[Parsers 模組]
     B -->|結構化記錄| C[SQLite 資料庫 usage.db]
-    D[LiteLLM API 爬蟲] -->|即時價格表| E[pricing.json]
+    D[LiteLLM 價格表 JSON] -->|補齊未知模型| E[pricing.json]
     C & E -->|REST API| F[Express Server API]
     F -->|JSON Data| G[前端 TypeScript Dashboard]
     G --> H[HeatmapRenderer]
@@ -23,26 +23,42 @@ graph TD
 2. **Database & Backup Layer (`src/db.ts`, `src/backup.ts`)**: 持久化資料庫存儲，資料最小粒度為「小時 (Hour)」。自動備份原始日誌檔至指定路徑。
 3. **Price Management (`src/pricing-fetcher.ts`)**: 自動同步並轉譯模型 API 價格，支援未知模型動態填補。
 4. **Server API (`src/server.ts`)**: 提供過濾查詢、數據統計、同步與設定介面。
-5. **Frontend Core (`public/js/`)**: 純 TypeScript 撰寫，無大型前端框架依賴，極致輕量與快速 response。
+5. **Frontend Core (`public/js/`)**: 純 TypeScript 撰寫，無前端框架依賴，由 esbuild 打包。圖表繪製使用 Chart.js 與 Canvas API（Chart.js 經 CDN 載入，未列於 package.json）。
 
 ---
 
 ## 🗄 2. 資料庫 Schema & 資料流
 
 ### Primary Table: `usage`
-主鍵設計為複合主鍵，確保最小時間單位（小時）與各維度聚合之唯一性與增量更新能力：
+以 `UNIQUE` 複合索引確保各維度在「小時」粒度下的唯一性，配合 `ON CONFLICT ... DO UPDATE` 達成增量累加：
 ```sql
 CREATE TABLE IF NOT EXISTS usage (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     date TEXT NOT NULL,          -- YYYY-MM-DD
     hour INTEGER NOT NULL,       -- 0-23
-    platform TEXT NOT NULL,      -- claude-code / antigravity
+    platform TEXT NOT NULL,      -- 實際寫入為 "<platform>/<profile>"，如 claude-code/default
     profile TEXT NOT NULL,       -- personal / work / default 等
-    type TEXT NOT NULL,         -- input / output / cache_write / cache_read
+    type TEXT NOT NULL,          -- input / output / cache_write / cache_read
     model TEXT NOT NULL,         -- 原始模型名稱 (e.g. claude-3-5-sonnet-20241022)
     project TEXT NOT NULL,       -- 專案絕對路徑
     session TEXT NOT NULL,       -- 對話/Session ID
     tokens INTEGER NOT NULL,     -- 累積 Tokens 數
-    PRIMARY KEY (date, hour, platform, profile, type, model, project, session)
+    is_estimated INTEGER DEFAULT 0,  -- 1 表示此筆為推估值（目前僅 Antigravity）
+    UNIQUE(date, hour, platform, profile, type, model, project, session)
+);
+```
+
+### 輔助表
+增量解析所需的狀態記錄，`reset()` 時會與 `usage` 一併重建：
+```sql
+CREATE TABLE IF NOT EXISTS scan_state (
+    file_path TEXT PRIMARY KEY,
+    last_offset INTEGER NOT NULL,   -- 已解析到的位元組位移
+    last_modified TEXT NOT NULL     -- 檔案 mtime，與 offset 一同判斷是否需重掃
+);
+
+CREATE TABLE IF NOT EXISTS processed_messages (
+    message_id TEXT PRIMARY KEY     -- 避免同一則 assistant 訊息被重複計算
 );
 ```
 
@@ -51,14 +67,19 @@ CREATE TABLE IF NOT EXISTS usage (
 ## 🔍 3. Parsers 解析邏輯
 
 ### 3.1 Claude Code Parser (`src/parsers/claude-code.ts`)
-- **掃描標的**: 讀取使用者設定檔中的 Claude Log 目錄 (如 `~/.claude`, `~/.claude-work`)。
-- **目標檔案**: `projects/**/*.jsonl` 與 `conversations/*.jsonl`。
-- **數據提取**: 解析每筆記錄中的 `type`, `message.model`, `usage.input_tokens`, `usage.output_tokens`, `usage.cache_creation_input_tokens`, `usage.cache_read_input_tokens`。
+- **掃描標的**: 使用者設定的 Claude 目錄下的 `projects/` 子目錄 (如 `~/.claude/projects`)。
+- **目標檔案**: `projects/` 底下遞迴搜尋到的所有 `*.jsonl`。
+- **專案名稱**: 優先取記錄中的 `cwd` 欄位；取不到時改用目錄名稱反解（Claude Code 會將路徑以 `-` 編碼）。
+- **數據提取**: 取 `type === 'assistant'` 且具 `message.usage` 的記錄，讀出 `message.model` 與 `usage.input_tokens`, `usage.output_tokens`, `usage.cache_creation_input_tokens`, `usage.cache_read_input_tokens`，皆為實際值 (`isEstimated: false`)。
+- **去重**: 以 `message.id`（或 `requestId`）搭配 `processed_messages` 表，避免同一則訊息的多個 content block 重複計算。
 
 ### 3.2 Antigravity Parser (`src/parsers/antigravity.ts`)
-- **掃描標的**: 讀取 `~/.gemini/antigravity/brain/`。
-- **目標檔案**: 各 Session 的 `logs/transcript.jsonl` 與 `transcript_full.jsonl`。
-- **數據提取**: 針對 Google Antigravity 代理人對話軌跡，提取模型 Token 消耗數據。
+- **掃描標的**: `<sourcePath>/brain/` 下的各 Session 目錄。
+- **目標檔案**: `brain/<sessionId>/.system_generated/logs/transcript.jsonl`。
+- **數據提取**: 此 log **不含 token 數**，故以 `字元數 ÷ 4` 推估，所有記錄標記 `isEstimated: true`。
+  - `source === 'USER_EXPLICIT'` 計入 input；`source === 'MODEL'`（含 `thinking` 與 `tool_calls`）計入 output；`TOOL_RESPONSE` 計入 input。
+  - 僅產生 input / output 兩類，**無 cache_write / cache_read**。
+- **模型判定**: 僅在 log 出現 `<USER_SETTINGS_CHANGE>` 的 `Model Selection` 變更事件時更新；在此之前的記錄一律歸為 `gemini`（不臆測版本）。`pricing.json` 中有對應的 `gemini` 條目作為通用估價。
 
 ---
 
@@ -83,7 +104,8 @@ public/js/
    - **Unit 單位選擇**（Tokens / Dollars / %）完全獨立於過濾器之外，按下即可全域即時生效。
 2. **Usage Heatmap**:
    - **左側標題單位切換**: 於標題列左側 (`<h2>` 旁) 提供 `Tokens` / `Dollars` 開關，切換熱點圖以 Token 總量或折合金額進行顏色階階與數值繪製。
-   - **Daily 模式**: 週一到週日全顯示 (Mon~Sun)，色階以當月用量進行動態縮放。
+   - **顯示範圍**: 非固定視窗。取目前篩選結果中最早與最晚的日期作為起訖（若今日較晚則延伸至今日），色階以該範圍內單格最大值動態縮放。
+   - **Daily 模式**: 7 列，週一到週日 (Mon~Sun)，欄數依總天數與起始星期推算。
    - **Hourly 模式**: 採 **由上而下 -> 由左到右** 排列（即單日分成 3 個直欄，每欄 8 小時：Column 1 包含 0~7 小時，Column 2 包含 8~15 小時，Column 3 包含 16~23 小時）。
    - **Hover Card**: 滑鼠懸停格子時顯示詳細小時/日期統計與各類 Token 消耗與花費。
 3. **Usage Trends (趨勢長條圖)**:
@@ -114,33 +136,36 @@ public/js/
 ## 🛠 5. Agent 開發者擴充指南 (Extension Guide for Future Agents)
 
 ### 5.1 如何新增一個全新的 AI 工具 Log Parser？
-1. 在 `src/parsers/` 下建立新的解析器類別 (繼承或參考 `src/parsers/base.ts`)。
-2. 實作 `parse()` 方法，傳回 `UsageRecord[]` 陣列。
-3. 在 `src/db.ts` 的 `syncLogs()` 邏輯中註冊新的 Parser。
-4. 在 `config.json` 中配置該工具的預設 Log 路徑與 Platform 名稱。
+1. 在 `src/parsers/` 下建立新的解析器類別 (實作 `src/parsers/base.ts` 的 `LogParser` 介面)。
+2. 實作 `parse()` 方法，傳回 `UsageRecord[]` 陣列；透過傳入的 `getScanState` / `updateScanState` callback 維護增量解析狀態。
+3. 在 `src/server.ts` 頂部的 `parsers` 物件中註冊新的 Parser（key 需對應 `SourceConfig.platform`）。
+4. 在 `src/types.ts` 的 `SourceConfig['platform']` 加上新的 platform 字面值。
+5. 於設定畫面新增該來源，或直接在 `config.json` 中配置其 Log 路徑與 platform 名稱。
 
 ### 5.2 如何調整模型價格與計費邏輯？
-- 系統已內建自動爬蟲 (`src/pricing-fetcher.ts`)，伺服器啟動時會定期向 LiteLLM 獲取最新的 Open-Source 價格表。
-- 若有特殊模型需手動指定價格，可以直接修改 `pricing.json`。格式如下：
+- `src/pricing-fetcher.ts` 會在伺服器啟動時檢查資料庫中是否有 `pricing.json` 尚未收錄的模型，若有則向 LiteLLM 的 `model_prices_and_context_window.json` 查詢並補上（單純下載 JSON，非網頁爬取）。
+- 注意此流程**只補未知模型，不會更新既有價格**；查詢不到的模型會套用依名稱推測的 fallback 價格，數字未必準確。
+- 若有特殊模型需手動指定價格，可以直接修改 `pricing.json`（單位為每百萬 tokens 的美金價格）。格式如下：
   ```json
-  "model-name": {
-    "input_cost_per_token": 0.000003,
-    "output_cost_per_token": 0.000015,
-    "cache_write_cost_per_token": 0.00000375,
-    "cache_read_cost_per_token": 0.0000003
+  "claude-sonnet-4-6": {
+    "input": 3,
+    "output": 15,
+    "cache_write": 3.75,
+    "cache_read": 0.3
   }
   ```
+  （LiteLLM 原始資料為 per-token，`pricing-fetcher.ts` 抓取時已乘上 1,000,000 轉為此格式。）
 
 ---
 
 ## 📝 6. 維護紀錄與歷史變更 Summary
 - **v0.1**: 完成基礎架構、SQLite 存儲、Claude Code 與 Antigravity Log 解析器。
-- **v0.2**: 新增 Hourly Heatmap 8x3 排列、Daily/Hourly 切換、LiteLLM 價格自動爬蟲。
+- **v0.2**: 新增 Hourly Heatmap 8x3 排列、Daily/Hourly 切換、LiteLLM 價格自動補齊。
 - **v0.3**: Filter Layout 重構為 2-Row 簡潔排版；趨勢圖新增模型家族/Profile/Project 階層色彩與動態彩度排序。
 - **v0.4**: Data Table 新增 `%` 單位支援、By Project 專案路徑展開/折疊功能，以及獨立 `tbody` 捲軸優化。
 - **v0.5**: 為 Usage Heatmap、Usage Trends 與 Detailed Data Table 提供獨立的 `Tokens / Dollars` 切換開關，並將 Table `%` 拆分為獨立的 `Value / %` 切換開關；建立 `config.example.json` 與安全 `.gitignore` 設定。
 - **v0.6**: 
   - **視覺化設定視窗**: 具備左側搜尋與分類側欄、路徑設定及可動態增刪修改的資料來源表格。
-  - **自動啟動配置 (Zero-Config First Run)**: 啟動時自動探測本機預設路徑生成草稿，首次進入直接跳出設定頁面，確認後再初始化寫入檔案。
+  - **首次啟動路徑探測**: 啟動時探測本機幾個常見路徑生成草稿設定，首次進入前端時跳出設定頁面，確認後才寫入 `config.json` 並初始化。
   - **Data Table 雙維度 Drill-Down**: 支援次維度選擇 (`Detail By`) 與點擊展開子項目即時計算呈現。
 

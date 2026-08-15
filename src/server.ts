@@ -30,10 +30,10 @@ function generateDefaultConfig(): AppConfig {
   const homedir = os.homedir().replace(/\\/g, '/');
   const sources: SourceConfig[] = [];
 
+  // Only the paths these tools create themselves. Additional profiles (e.g. a
+  // self-made ~/.claude-work) are meant to be added by the user in Settings.
   const candidates: { platform: 'claude-code' | 'antigravity'; profile: string; path: string }[] = [
     { platform: 'claude-code', profile: 'default', path: `${homedir}/.claude` },
-    { platform: 'claude-code', profile: 'personal', path: `${homedir}/.claude-personal` },
-    { platform: 'claude-code', profile: 'work', path: `${homedir}/.claude-work` },
     { platform: 'antigravity', profile: 'default', path: `${homedir}/.gemini/antigravity` },
     { platform: 'antigravity', profile: 'default', path: `${homedir}/.gemini` }
   ];

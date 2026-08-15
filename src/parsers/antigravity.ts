@@ -49,7 +49,8 @@ export class AntigravityParser implements LogParser {
       
       // Pre-scan for project name and model
       let projectName = "Unknown Project";
-      let currentModel = 'gemini-1.5-pro'; 
+      // Fallback when the transcript contains no model-selection event
+      let currentModel = 'gemini';
 
       for (const line of lines) {
         try {

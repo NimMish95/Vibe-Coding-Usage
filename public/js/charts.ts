@@ -135,18 +135,22 @@ export class ChartRenderer {
        }
     }
 
+    // Hues for the top projects: red, orange, yellow, green, cyan, violet, magenta.
+    // Chosen explicitly rather than by a fixed step so no two entries land on
+    // neighbouring hues (the old `idx * 50` produced two near-identical greens).
+    const projectHues = [0, 32, 55, 120, 195, 255, 305];
+
     const projectColorMap = new Map<string, string>();
     if (groupBy === 'project') {
        const sortedProjects = Array.from(projectTotals.entries())
                                    .sort((a, b) => b[1] - a[1])
                                    .map(e => e[0]);
        sortedProjects.forEach((p, idx) => {
-          const hue = (idx * 50) % 360;
-          if (idx < 7) {
+          const hue = projectHues[idx % projectHues.length];
+          if (idx < projectHues.length) {
              projectColorMap.set(p, `hsl(${hue}, 70%, 60%)`);
           } else {
-             projectColorMap.set(p, `hsl(${hue}, 30%, 35%)`); // Use darker/muted colors since the background is dark (glass panel). Or wait, '較淺的顏色' means lighter. In dark mode, lighter (higher luminance) might look too bright. Let's use lower saturation and lightness that fits dark mode. Actually, `hsl(hue, 30%, 40%)` is good. 
-             // Let's use the user's request "較淺的顏色" literally: 
+             // Beyond the top group, reuse the hues muted so they recede visually.
              projectColorMap.set(p, `hsl(${hue}, 35%, 45%)`);
           }
        });

@@ -95,6 +95,12 @@
     "cache_write": 1.25,
     "cache_read": 0.125
   },
+  "gemini": {
+    "input": 3,
+    "output": 15,
+    "cache_write": 3.75,
+    "cache_read": 0.3
+  },
   "gemini-unknown": {
     "input": 3,
     "output": 15,
@@ -118,5 +124,11 @@
     "output": 9,
     "cache_write": 1.5,
     "cache_read": 0.15
+  },
+  "gemini": {
+    "input": 1.25,
+    "output": 10,
+    "cache_write": 1.25,
+    "cache_read": 0.125
   }
 }

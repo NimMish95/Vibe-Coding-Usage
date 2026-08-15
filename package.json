@@ -2,6 +2,7 @@
   "name": "vibe-coding-usage",
   "version": "1.0.0",
   "description": "AI Code Tools Usage Tracker",
+  "license": "MIT",
   "main": "dist/server.js",
   "scripts": {
     "dev": "concurrently \"tsx watch src/server.ts\" \"esbuild public/js/app.ts public/js/heatmap.ts public/js/charts.ts public/js/filters.ts --bundle --outdir=public/dist --watch\"",
@@ -12,8 +13,7 @@
     "better-sqlite3": "^11.1.2",
     "chokidar": "^3.6.0",
     "express": "^4.19.2",
-    "node-fetch": "^2.7.0",
-    "cheerio": "^1.0.0-rc.12"
+    "node-fetch": "^2.7.0"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
